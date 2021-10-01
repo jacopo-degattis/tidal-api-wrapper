@@ -126,6 +126,8 @@ class TidalApi:
     self.s.headers.update({"authorization": f"Bearer {self.access_token}"})
   # TODO: create request function to make all api calls
 
+  # --- ME AND DEVICES ---
+
   def me(self):
     res = self.s.get(f"{BASE_LOGIN_URI}/oauth2/me")
     
@@ -133,6 +135,12 @@ class TidalApi:
       return res.json()
     else:
       return res.content
+
+  def get_clients(self):
+    res = self.s.get(f"{BASE_LISTEN_API}/users/182349322/clients")
+    return res.json()
+
+  # --- PLAYLISTS ---
 
   def get_playlists(self):
     params = {
@@ -150,8 +158,8 @@ class TidalApi:
 
   def update_playlist(self, update_data={}, playlist_id=None):
     if playlist_id:
-      self.s.headers.update({"content-type": "application/x-www-form-urlencoded; charset=UTF-8"})
-      res = self.s.post(f"{BASE_LISTEN_API}/playlists/{playlist_id}", data=update_data)
+      headers = {**self.s.headers, "content-type": "application/x-www-form-urlencoded; charset=UTF-8"}
+      res = self.s.post(f"{BASE_LISTEN_API}/playlists/{playlist_id}", data=update_data, headers=headers)
       return res.status_code == 200
     else:
       return False
@@ -159,4 +167,3 @@ class TidalApi:
     
 t = TidalApi()
 t.login("", "")
-t.update_playlist({"description": "euh"}, "52495b94-d9b4-44af-b9ae-a191c6f323cb")
