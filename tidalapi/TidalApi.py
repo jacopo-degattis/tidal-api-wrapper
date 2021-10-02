@@ -183,6 +183,32 @@ class TidalApi:
         return False
     return False
 
+  def get_homepage(self, country_code="EN"):
+    params = {"countryCode": country_code, "deviceType": "BROWSER"}
+    response = self.s.get(f"{BASE_LISTEN_API}/pages/home", params=params)
+    return response.json()
+
+  def get_album(self, country_code="EN", album_id=None):
+    if album_id:
+      params = {"albumId": album_id, "countryCode": country_code, "deviceType": "BROWSER"}
+      response = self.s.get(f"{BASE_LISTEN_API}/pages/album", params=params)
+      return response.json()
+
+  def search(self, query=None, **params):
+    if not params:
+      params = {
+        "limit": "25",
+        "offset": 0,
+        "types": ["ARTISTS","ALBUMS","TRACKS","VIDEOS","PLAYLISTS"],
+        "includeContributors": "true",
+        "locale": "en_US",
+        "countryCode": "EN",
+        "query": query,
+        "deviceType": "BROWSER"
+      }
+    response = self.s.get(f"{BASE_LISTEN_API}/search/top-hits", params=params)
+    return response.json()
+
 t = TidalApi()
 t.login("", "")
-t.create_playlist(name="TEST", description="PROVA")
+t.search("drake")
