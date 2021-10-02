@@ -142,6 +142,14 @@ class TidalApi:
 
   # --- PLAYLISTS ---
 
+  def create_playlist(self,
+                      name="Your Playlist",
+                      description="Created with Tidal Wrapper",
+                      folder="root"):
+      params = {"name": name, "description": description, "folderId": folder}
+      response = self.s.put(f"{BASE_API}/my-collection/playlists/folders/create-playlist", params=params)
+      return response.status_code == 200
+
   def get_playlists(self):
     params = {
       "folderId": "root",
@@ -164,6 +172,17 @@ class TidalApi:
     else:
       return False
     return False
-    
+
+  def delete_playlist(self, playlist_id=None):
+    if playlist_id:
+      params = {"trns": f"trn:playlist:{playlist_id}"}
+      res = self.s.put(f"{BASE_API}/my-collection/playlists/folders/remove", params=params)
+      if res.status_code == 204:
+        return True
+      else:
+        return False
+    return False
+
 t = TidalApi()
 t.login("", "")
+t.create_playlist(name="TEST", description="PROVA")
