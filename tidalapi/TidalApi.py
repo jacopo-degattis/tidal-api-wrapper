@@ -37,6 +37,11 @@ class TidalApi:
     code_challenge = pkce.get_code_challenge(code_verifier)
     return code_verifier, code_challenge
     
+  def _get_page(self, page_name="home", params={}):
+    params = {**params, "countryCode": "EN", "deviceType": "BROWSER"}
+    response = self.s.get(f"{BASE_LISTEN_API}/pages/{page_name}", params=params)
+    return response.json()
+
   def _load_session(self):    
     res = self.s.get(f"{BASE_LOGIN_URI}/authorize", params=self.params)
     
@@ -184,15 +189,14 @@ class TidalApi:
     return False
 
   def get_homepage(self, country_code="EN"):
-    params = {"countryCode": country_code, "deviceType": "BROWSER"}
-    response = self.s.get(f"{BASE_LISTEN_API}/pages/home", params=params)
-    return response.json()
+    response = self._get_page("home")
+    return response
 
-  def get_album(self, country_code="EN", album_id=None):
-    if album_id:
-      params = {"albumId": album_id, "countryCode": country_code, "deviceType": "BROWSER"}
-      response = self.s.get(f"{BASE_LISTEN_API}/pages/album", params=params)
-      return response.json()
+  # TODO: make variables such as countryCode globals variables
+  # that u can set when instantiating the class such as **options
+  def get_album(self, album_id=None):
+    response = self._get_page("album", {"albumId": album_id})
+    return response
 
   def search(self, query=None, **params):
     if not params:
@@ -209,6 +213,14 @@ class TidalApi:
     response = self.s.get(f"{BASE_LISTEN_API}/search/top-hits", params=params)
     return response.json()
 
+  def get_artist(self, artist_id=None):
+    response = self._get_page("artist", {"artistId": artist_id})
+    return response
+
+  def get_user_mixes(self):
+    response = self._get_page("my_collection_my_mixes")
+    return response
+
 t = TidalApi()
 t.login("", "")
-t.search("drake")
+print(t.get_homepage())
