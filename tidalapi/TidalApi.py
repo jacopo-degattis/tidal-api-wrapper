@@ -5,9 +5,10 @@ import os, json, pkce, requests
 # https://datatracker.ietf.org/doc/html/rfc7636#page-17
 
 class TidalApi:
+  code = ""
+  user_id = ""
   headers = {}
   params = {}
-  code = ""
   csrf_token = ""
   access_token = ""
   refresh_token = ""
@@ -61,7 +62,7 @@ class TidalApi:
 
   def _load_session(self):    
     res = self._request(f"{BASE_LOGIN_URI}/authorize", params=self.params)
-    
+
     # TODO: add captha bypass 
     csrf_token = res.headers['Set-Cookie'].split("_csrf-token=")[1].split(";")[0]
     
@@ -76,7 +77,7 @@ class TidalApi:
     if not self.csrf_token:
       self._load_session()
     
-    data = {"email": "jaki99kofficial@gmail.com", "recaptchaResponse": ""}
+    data = {"email": email, "recaptchaResponse": ""}
     res = self._request(f"{BASE_LOGIN_URI}/api/email", params=self.params, data=data, method="POST")
 
     if res.status_code == 200:
@@ -88,7 +89,7 @@ class TidalApi:
     existing = self._check_existing_user(email)
     
     if existing:
-      data = {"email": "jaki99kofficial@gmail.com", "password": "Camillo01_"}
+      data = {"email": email, "password": password}
       res = self._request(f"{BASE_LOGIN_URI}/api/email/user/existing", params=self.params, data=data, method="POST")
       code = res.json()["redirectUri"].split("code=")[1].split("&")[0]
       self.code = code
@@ -107,8 +108,9 @@ class TidalApi:
           data_string = cache_file.read()
           data_json = json.loads(data_string)
           if "access_token" in data_json.keys() and "refresh_token" in data_json.keys():
-            self.access_token = data_json["access_token"]
-            self.refresh_token = data_json["refresh_token"]
+            self.access_token = data_json.get("access_token")
+            self.refresh_token = data_json.get("refresh_token")
+            self.user_id = data_json.get("user").get("userId")
             op_status = True
         except:
           op_status = False
@@ -133,8 +135,9 @@ class TidalApi:
       # res = self._request(f"{BASE_LOGIN_URI}/oauth2/token", data=pyaload)
       response = self._request(f"{BASE_LOGIN_URI}/oauth2/token", data=payload, method="POST").json()
 
-      self.access_token = response["access_token"]
-      self.refresh_token = response["refresh_token"]
+      self.access_token = response.get("access_token")
+      self.refresh_token = response.get("refresh_token")
+      self.user_id = response.get("user").get("userId")
 
       self._write_local_cache(data=response)      
       # TODO: add check if login is successfull or not (maybe boolean)
@@ -154,7 +157,7 @@ class TidalApi:
 
   def get_clients(self):
     # TODO: put variables instead of hard-coded value -> 182349322
-    res = self._request(f"{BASE_LISTEN_API}/users/182349322/clients").json()
+    res = self._request(f"{BASE_LISTEN_API}/users/{self.user_id}/clients").json()
     return res
 
   def get_homepage(self, country_code="EN"):
@@ -236,6 +239,3 @@ class TidalApi:
   def get_artist(self, artist_id=None):
     response = self._get_page("artist", {"artistId": artist_id})
     return response
-
-t = TidalApi()
-t.login("", "")
