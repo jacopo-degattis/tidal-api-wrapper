@@ -29,7 +29,6 @@ class TidalApi:
       "code_challenge": self.code_challenge
     }
     self.s = requests.Session()
-    self.csrf_token = ""
     self.s.headers = {**self.headers, "user-agent": USER_AGENT, "origin": ORIGIN}
     
   def _generate_pkce_code(self):
@@ -39,11 +38,29 @@ class TidalApi:
     
   def _get_page(self, page_name="home", params={}):
     params = {**params, "countryCode": "EN", "deviceType": "BROWSER"}
-    response = self.s.get(f"{BASE_LISTEN_API}/pages/{page_name}", params=params)
-    return response.json()
+    response = self._request(url=f"{BASE_LISTEN_API}/pages/{page_name}", payload=params)
+    return response
+
+  def _request(self, url=f"{BASE_LISTEN_API}", method="GET", headers={}, params={}, data={}, json=True):
+    response = None
+    headers = {**self.headers, **headers}
+    request_info = {"url": url, "headers": headers}
+
+    if method == "GET":
+      response = self.s.get(**request_info, params=params)
+    elif method == "POST":
+      if len(data.keys()) > 0:
+        request_info = {"json": data, **request_info} if json else {"data": data, **request_info}
+      response = self.s.post(**request_info, params=params)
+    elif method == "PUT":
+      if len(data.keys()) > 0:
+        request_info = {"json": data, **request_info} if json else {"data": data, **request_info}
+      response = self.s.put(**request_info, params=params)
+
+    return response
 
   def _load_session(self):    
-    res = self.s.get(f"{BASE_LOGIN_URI}/authorize", params=self.params)
+    res = self._request(f"{BASE_LOGIN_URI}/authorize", params=self.params)
     
     # TODO: add captha bypass 
     csrf_token = res.headers['Set-Cookie'].split("_csrf-token=")[1].split(";")[0]
@@ -59,7 +76,8 @@ class TidalApi:
     if not self.csrf_token:
       self._load_session()
     
-    res = self.s.post(f"{BASE_LOGIN_URI}/api/email", params=self.params, json={"email": "jaki99kofficial@gmail.com", "recaptchaResponse": ""})
+    data = {"email": "jaki99kofficial@gmail.com", "recaptchaResponse": ""}
+    res = self._request(f"{BASE_LOGIN_URI}/api/email", params=self.params, data=data, method="POST")
 
     if res.status_code == 200:
       return res.json()["isValidEmail"]
@@ -70,7 +88,8 @@ class TidalApi:
     existing = self._check_existing_user(email)
     
     if existing:
-      res = self.s.post(f"{BASE_LOGIN_URI}/api/email/user/existing", params=self.params, json={"email": "jaki99kofficial@gmail.com", "password": "Camillo01_"})
+      data = {"email": "jaki99kofficial@gmail.com", "password": "Camillo01_"}
+      res = self._request(f"{BASE_LOGIN_URI}/api/email/user/existing", params=self.params, data=data, method="POST")
       code = res.json()["redirectUri"].split("code=")[1].split("&")[0]
       self.code = code
       
@@ -111,39 +130,51 @@ class TidalApi:
         "code_verifier": self.code_verifier
       }
       
-      res = self.s.post(f"{BASE_LOGIN_URI}/oauth2/token", json=payload)
-      json_data = res.json()
+      # res = self._request(f"{BASE_LOGIN_URI}/oauth2/token", data=pyaload)
+      response = self._request(f"{BASE_LOGIN_URI}/oauth2/token", data=payload, method="POST").json()
 
-      self.access_token = json_data["access_token"]
-      self.refresh_token = json_data["refresh_token"]
+      self.access_token = response["access_token"]
+      self.refresh_token = response["refresh_token"]
 
-      file_created = self._write_local_cache(data=json_data)
-
-      if file_created:
-        print("Cache file written filesystem")
-      else:
-        print("Error while creating local cache file")
-      
+      self._write_local_cache(data=response)      
       # TODO: add check if login is successfull or not (maybe boolean)
-    else:
       # TODO: find out how to get new token starting from refresh_token
-      print("Logged in from local cache")
     self.s.headers.update({"authorization": f"Bearer {self.access_token}"})
   # TODO: create request function to make all api calls
 
   # --- ME AND DEVICES ---
 
   def me(self):
-    res = self.s.get(f"{BASE_LOGIN_URI}/oauth2/me")
-    
-    if "application/json" in res.headers.get("content-type"):
-      return res.json()
-    else:
-      return res.content
+    res = self._request(url=f"{BASE_LOGIN_URI}/oauth2/me").json()
+    return res
+
+  def get_user_mixes(self):
+    response = self._get_page("my_collection_my_mixes").json()
+    return response
 
   def get_clients(self):
-    res = self.s.get(f"{BASE_LISTEN_API}/users/182349322/clients")
-    return res.json()
+    # TODO: put variables instead of hard-coded value -> 182349322
+    res = self._request(f"{BASE_LISTEN_API}/users/182349322/clients").json()
+    return res
+
+  def get_homepage(self, country_code="EN"):
+    response = self._get_page("home").json()
+    return response
+
+  def get_playlists(self, **params):
+    if not params:
+      params = {
+        "folderId": "root",
+        "offset": "0",
+        "limit": "50",
+        "order": "DATE",
+        "orderDirection": "DESC",
+        "countryCode": "EN",
+        "locale": "en_EN",
+        "deviceType": "BROWSER"
+      }
+    res = self._request(f"{BASE_API}/my-collection/playlists/folders", payload=params).json()
+    return res
 
   # --- PLAYLISTS ---
 
@@ -152,28 +183,15 @@ class TidalApi:
                       description="Created with Tidal Wrapper",
                       folder="root"):
       params = {"name": name, "description": description, "folderId": folder}
-      response = self.s.put(f"{BASE_API}/my-collection/playlists/folders/create-playlist", params=params)
-      return response.status_code == 200
+      response = self._request(url=f"{BASE_API}/my-collection/playlists/folders/create-playlist", method="PUT", params=params).json()
+      return response
 
-  def get_playlists(self):
-    params = {
-      "folderId": "root",
-      "offset": "0",
-      "limit": "50",
-      "order": "DATE",
-      "orderDirection": "DESC",
-      "countryCode": "IT",
-      "locale": "it_IT",
-      "deviceType": "BROWSER"
-    }
-    res = self.s.get(f"{BASE_API}/my-collection/playlists/folders", params=params)
-    return res.json()
 
-  def update_playlist(self, update_data={}, playlist_id=None):
+  def update_playlist(self, playlist_id=None, update_data={}):
     if playlist_id:
-      headers = {**self.s.headers, "content-type": "application/x-www-form-urlencoded; charset=UTF-8"}
-      res = self.s.post(f"{BASE_LISTEN_API}/playlists/{playlist_id}", data=update_data, headers=headers)
-      return res.status_code == 200
+      headers = {"content-type": "application/x-www-form-urlencoded; charset=UTF-8"}
+      response = self._request(f"{BASE_LISTEN_API}/playlists/{playlist_id}", method="POST", data=update_data, headers=headers, json=False)
+      return response.status_code == 200
     else:
       return False
     return False
@@ -181,22 +199,22 @@ class TidalApi:
   def delete_playlist(self, playlist_id=None):
     if playlist_id:
       params = {"trns": f"trn:playlist:{playlist_id}"}
-      res = self.s.put(f"{BASE_API}/my-collection/playlists/folders/remove", params=params)
+      res = self._request(f"{BASE_API}/my-collection/playlists/folders/remove", params=params, method="PUT")
       if res.status_code == 204:
         return True
       else:
         return False
     return False
 
-  def get_homepage(self, country_code="EN"):
-    response = self._get_page("home")
-    return response
+  # --- ALBUMS ---
 
   # TODO: make variables such as countryCode globals variables
   # that u can set when instantiating the class such as **options
   def get_album(self, album_id=None):
     response = self._get_page("album", {"albumId": album_id})
     return response
+
+  # --- SEARCH ---
 
   def search(self, query=None, **params):
     if not params:
@@ -210,17 +228,14 @@ class TidalApi:
         "query": query,
         "deviceType": "BROWSER"
       }
-    response = self.s.get(f"{BASE_LISTEN_API}/search/top-hits", params=params)
+    response = self._request(f"{BASE_LISTEN_API}/search/top-hits", params=params)
     return response.json()
+
+  # --- ARTISTS ---
 
   def get_artist(self, artist_id=None):
     response = self._get_page("artist", {"artistId": artist_id})
     return response
 
-  def get_user_mixes(self):
-    response = self._get_page("my_collection_my_mixes")
-    return response
-
 t = TidalApi()
 t.login("", "")
-print(t.get_homepage())
